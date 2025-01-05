@@ -25,7 +25,7 @@ model = nn.Sequential(model, classifier)
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr = 2e-5)
 
-frase = "hola"
+
 
 result = model(frase)
 print(result)
