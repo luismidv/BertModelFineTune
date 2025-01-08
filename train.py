@@ -1,13 +1,24 @@
 import pandas as pd
 import torch
+import numpy as np
+
 from transformers import BertModel
 from torch import nn
 from torch import optim
 from datasets import load_dataset
 from transformers import AutoTokenizer
 from nltk.stem.porter import PorterStemmer
+from datasets import Dataset
+from transformers import AutoModelForSequenceClassification
+from transformers import TrainingArguments
+import evaluate
+
+
+
 def get_data_info(dataset):
     print(dataset.describe())
+    labels = dataset["label"]
+    print(labels.unique())
 
 def identify_null_values(dataset):
     null_values = [col for col in dataset.columns if dataset[col].isnull().any() > 0]
@@ -39,7 +50,8 @@ def tokenize_features(features,autotokenizer):
         counter += 1
     return new_list
 
-def original_tokenize_features(features):
+def tokenize_function(features):
+    print(f"Starting tokenization")
     return autotokenizer(features["text"], padding = "max_length", truncation=True)
 
 def get_tensor_input(tokenized_features):
@@ -48,12 +60,28 @@ def get_tensor_input(tokenized_features):
             dictionary[key] = torch.tensor(dictionary[key])
     return tokenized_features
 
+def input_transformation(model_input):
+    for input in model_input:
+        keys = input.keys()
+        for key in keys:
+            input[key] = input[key].view(1, -1)
+    return model_input
+
+def model_training(model, input):
+    print(input)
+    #output = model(**input)
+
+def calculate_metrics(eval_pred):
+    logits,labels = eval_pred
+    predictions = np.argmax(logits, axis=1)
+    return metric.compute(predictions = predictions, references = labels)
 
 
-#GET THE DATASETS
+    #GET THE DATASETS
 dataset = pd.read_parquet('./data/train-00000-of-00001.parquet')
+dataset_hf = Dataset.from_pandas(dataset)
 
-#FUNCTION CALLINGS
+    #FUNCTION CALLINGS
 
     #DATA GENERAL INFORMATION
 get_data_info(dataset)
@@ -67,21 +95,20 @@ get_data_info(dataset)
 
 
 
-#INITIALIZE TOKENIZER
+                #INITIALIZE TOKENIZER
 autotokenizer = AutoTokenizer.from_pretrained("google-bert/bert-base-cased")
 
-tokenized_features = tokenize_features(dataset, autotokenizer)
-model_input = get_tensor_input(tokenized_features)
-#tokenized_features =  dataset.map(original_tokenize_features, batched=True)
+#tokenized_features = tokenize_features(dataset, autotokenizer)
+#model_input = get_tensor_input(tokenized_features)
+#tokenized_features =  dataset_hf.map(tokenize_function, batched=True)
 
-#INSTANTIATE THE MODEL
+            #INSTANTIATE THE MODEL
 #TODO CHECK MODEL INPUTS SIZES SINCE IT SHOULD BE 2 SIZES NOT ONLY ONE
 model = BertModel.from_pretrained('bert-base-uncased')
-for input in model_input:
-    keys = input.keys()
-    for key in keys:
-        print(input[key].shape)
-    #output = model(**input)
+#new_input = input_transformation(model_input)
+#model_training(model, new_input)
+
+#output = model(model_input)
 #CREATE CLASSIFIER
 classifier = nn.Linear(768, 2)
 
@@ -92,5 +119,7 @@ model = nn.Sequential(model, classifier)
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr = 2e-5)
 
-
+model = AutoModelForSequenceClassification.from_pretrained('bert-base-uncased', num_labels=5, torch_dtype = "auto")
+training_args = TrainingArguments(output_dir = "test_trainer")
+metric = evaluate.load("accuracy")
 #result = model(frase)
