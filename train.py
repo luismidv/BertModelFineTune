@@ -10,7 +10,7 @@ from transformers import AutoTokenizer
 from nltk.stem.porter import PorterStemmer
 from datasets import Dataset
 from transformers import AutoModelForSequenceClassification
-from transformers import TrainingArguments
+from transformers import TrainingArguments, Trainer
 import evaluate
 
 
@@ -76,7 +76,6 @@ def calculate_metrics(eval_pred):
     predictions = np.argmax(logits, axis=1)
     return metric.compute(predictions = predictions, references = labels)
 
-
     #GET THE DATASETS
 dataset = pd.read_parquet('./data/train-00000-of-00001.parquet')
 dataset_hf = Dataset.from_pandas(dataset)
@@ -95,12 +94,12 @@ get_data_info(dataset)
 
 
 
-                #INITIALIZE TOKENIZER
+    #INITIALIZE TOKENIZER
 autotokenizer = AutoTokenizer.from_pretrained("google-bert/bert-base-cased")
 
 #tokenized_features = tokenize_features(dataset, autotokenizer)
 #model_input = get_tensor_input(tokenized_features)
-#tokenized_features =  dataset_hf.map(tokenize_function, batched=True)
+tokenized_features =  dataset_hf.map(tokenize_function, batched=True)
 
             #INSTANTIATE THE MODEL
 #TODO CHECK MODEL INPUTS SIZES SINCE IT SHOULD BE 2 SIZES NOT ONLY ONE
@@ -119,7 +118,26 @@ model = nn.Sequential(model, classifier)
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr = 2e-5)
 
-model = AutoModelForSequenceClassification.from_pretrained('bert-base-uncased', num_labels=5, torch_dtype = "auto")
-training_args = TrainingArguments(output_dir = "test_trainer")
+        #CLASS OPTIMIZED FOR TRAINING TRANSFORMERS MODELS FOR CLASSIFICATION, MODEL WITH EXPECTED LABELS (5)
+model = AutoModelForSequenceClassification.from_pretrained('google-bert/bert-base-cased', num_labels=5, torch_dtype = "auto")
+
+        #HERE WE HAVE THE HYPERPARAMETERS FOR OUR MODEL
+#WE CAN SET EVAL_STRATEGY TO MONITOR EVALUATION METRICS DURING TRAINING
+training_args = TrainingArguments(output_dir = "test_trainer", eval_strategy="epoch")
+        #METRICS FOR EVALUATIONS
 metric = evaluate.load("accuracy")
+
+trainer = Trainer(
+    model= model,
+    args = training_args,
+    train_dataset = tokenized_features,
+    eval_dataset = tokenized_features,
+    compute_metrics = calculate_metrics
+
+)
+
+trainer.train()
+
+
+
 #result = model(frase)
