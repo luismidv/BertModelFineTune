@@ -1,0 +1,8 @@
+pandas
+torch
+numpy
+transformers
+torch
+datasets
+nltk
+evaluate
